@@ -10,16 +10,20 @@ import { User } from './models/User.js';
 // --- 1. SETUP & DB CONNECTION ---
 const app = express();
 const server = http.createServer(app);
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.CLIENT_URL|| 5000;
 
 console.log("Attempting to connect to MongoDB...");
 connectDB().then(() => console.log("✅ MongoDB connection verified established"));
 
+// --- THIS IS THE FIX ---
+// We are making the API (Express) CORS as open as the WebSocket CORS.
+// This will fix the "Connection to server failed" on sign up.
 app.use(cors({
-  origin: [process.env.CLIENT_URL, "http://localhost:5173", "http://127.0.0.1:5173"],
-  credentials: true,
+  origin: "*", // Allow all origins
   methods: ["GET", "POST", "PUT", "DELETE"]
 }));
+// --- END OF FIX ---
+
 app.use(express.json());
 
 const generateToken = (id) => {
@@ -30,9 +34,8 @@ const generateToken = (id) => {
 
 app.post('/api/auth/register', async (req, res) => {
   console.log("📝 Register attempt:", req.body.email);
-  // Destructure the new 'avatar' field along with other user details
+  // ... (rest of your register code)
   const { name, email, password, avatar } = req.body; 
-  
   if (!name || !email || !password || password.length < 6) {
       return res.status(400).json({ message: 'Please provide name, email, and a password (min. 6 chars)' });
   }
@@ -42,8 +45,6 @@ app.post('/api/auth/register', async (req, res) => {
       console.log("❌ Register failed: User exists");
       return res.status(400).json({ message: 'User already exists' });
     }
-
-    // Create user with avatar
     const user = await User.create({ name, email, password, avatar }); 
     if (user) {
       console.log("✅ User created successfully:", user._id);
@@ -52,7 +53,7 @@ app.post('/api/auth/register', async (req, res) => {
         name: user.name,
         email: user.email,
         token: generateToken(user._id),
-        avatar: user.avatar // Send avatar in response
+        avatar: user.avatar
       });
     }
   } catch (error) {
@@ -63,6 +64,7 @@ app.post('/api/auth/register', async (req, res) => {
 
 app.post('/api/auth/login', async (req, res) => {
   console.log("🔑 Login attempt:", req.body.email);
+  // ... (rest of your login code)
   const { email, password } = req.body;
   try {
     const user = await User.findOne({ email });
@@ -73,7 +75,7 @@ app.post('/api/auth/login', async (req, res) => {
         name: user.name,
         email: user.email,
         token: generateToken(user._id),
-        avatar: user.avatar // Send avatar in response
+        avatar: user.avatar
       });
     } else {
       console.log("❌ Login failed: Invalid credentials");
@@ -87,15 +89,14 @@ app.post('/api/auth/login', async (req, res) => {
 
 app.post('/api/auth/google', async (req, res) => {
   console.log("🔑 Google Login attempt:", req.body.email);
+  // ... (rest of your google code)
   const { email, name, googleId, avatar } = req.body;
   try {
     let user = await User.findOne({ email });
     if (!user) {
-       // Create new user with Google details
        user = await User.create({ name, email, googleId, avatar, password: Date.now().toString() + Math.random() });
        console.log("✅ Created new Google user:", email);
     } else {
-       // Update avatar for existing users
        user.avatar = avatar; 
        await user.save();
        console.log("✅ Existing Google user logged in:", email);
@@ -105,7 +106,7 @@ app.post('/api/auth/google', async (req, res) => {
         name: user.name,
         email: user.email,
         token: generateToken(user._id),
-        avatar: user.avatar // Send avatar in response
+        avatar: user.avatar
     });
   } catch (error) {
     console.error("💥 Google Auth Error:", error.message);
@@ -116,7 +117,7 @@ app.post('/api/auth/google', async (req, res) => {
 // --- 3. SOCKET.IO SIGNALING ---
 const io = new Server(server, {
   cors: {
-    origin: "*", // Wildcard for sockets is often easiest for dev
+    origin: "*", 
     methods: ["GET", "POST"]
   }
 });
@@ -125,43 +126,26 @@ const rooms = {};
 
 io.on('connection', (socket) => {
   console.log(`Socket Connected: ${socket.id}`);
-
+  // ... (rest of your socket.io code)
   socket.on('join-room', ({ roomId, userId, userName }) => {
     socket.join(roomId);
     if (!rooms[roomId]) rooms[roomId] = [];
     rooms[roomId].push({ socketId: socket.id, userId, userName });
     console.log(`[${roomId}] ${userName} joined`);
-    
-    // Notify others in room
     socket.to(roomId).emit('user-connected', { userId, userName, socketId: socket.id });
-    
-    // Send list of existing users to new user
     const usersInRoom = rooms[roomId].filter(user => user.socketId !== socket.id);
     socket.emit('all-users', usersInRoom);
   });
-
-  // WebRTC Signaling
-  socket.on('offer', (payload) => {
-    io.to(payload.target).emit('offer', payload);
-  });
-
-  socket.on('answer', (payload) => {
-    io.to(payload.target).emit('answer', payload);
-  });
-
-  socket.on('ice-candidate', (payload) => {
-    io.to(payload.target).emit('ice-candidate', payload);
-  });
-
+  socket.on('offer', (payload) => io.to(payload.target).emit('offer', payload));
+  socket.on('answer', (payload) => io.to(payload.target).emit('answer', payload));
+  socket.on('ice-candidate', (payload) => io.to(payload.target).emit('ice-candidate', payload));
   socket.on('disconnecting', () => {
     for (const room of socket.rooms) {
       if (room !== socket.id && rooms[room]) {
         const disconnectedUser = rooms[room].find(user => user.socketId === socket.id);
         rooms[room] = rooms[room].filter(user => user.socketId !== socket.id);
         console.log(`[${room}] ${disconnectedUser?.userName || socket.id} left`);
-        
         socket.to(room).emit('user-disconnected', socket.id);
-        
         if (rooms[room].length === 0) {
           console.log(`[${room}] Room is now empty. Deleting.`);
           delete rooms[room];
