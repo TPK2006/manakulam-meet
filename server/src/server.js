@@ -28,6 +28,7 @@ const generateToken = (id) => {
 };
 
 
+
 // --- 2. AUTH ROUTES (WITH LOGGING) ---
 
 app.post('/api/auth/register', async (req, res) => {
