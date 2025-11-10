@@ -1,0 +1,18 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-[#080808] text-gray-200 font-sans;
+}
+
+/* Custom scrollbar for a premium feel */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  @apply bg-[#0C0C0C];
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-[#2A2A2A] rounded-full;
+}
