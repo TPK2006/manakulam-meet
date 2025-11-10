@@ -27,6 +27,7 @@ const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: '30d' });
 };
 
+
 // --- 2. AUTH ROUTES (WITH LOGGING) ---
 
 app.post('/api/auth/register', async (req, res) => {
