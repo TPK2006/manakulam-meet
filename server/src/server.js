@@ -18,10 +18,7 @@ connectDB().then(() => console.log("✅ MongoDB connection verified established"
 // --- THIS IS THE FIX ---
 // We are making the API (Express) CORS as open as the WebSocket CORS.
 // This will fix the "Connection to server failed" on sign up.
-app.use(cors({
-  origin: "*", // Allow all origins
-  methods: ["GET", "POST", "PUT", "DELETE"]
-}));
+app.use(cors());
 // --- END OF FIX ---
 
 app.use(express.json());
@@ -115,12 +112,10 @@ app.post('/api/auth/google', async (req, res) => {
 });
 
 // --- 3. SOCKET.IO SIGNALING ---
-const io = new Server(server, {
-  cors: {
-    origin: "*", 
-    methods: ["GET", "POST"]
-  }
+const io = socketIo(server, {
+  cors: { origin: '*' }
 });
+
 
 const rooms = {};
 
